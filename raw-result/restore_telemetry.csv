@@ -1,0 +1,4 @@
+timestamp,target_chain_version,target_cycle_count,verify_s,unstructured_restore_s,pg_wal_stage_s,pg_basebackup_restore_s,mongo_oplog_restore_s,mongo_basebackup_restore_s,total_restore_s,applied_pfc_chunks,verified_ok_chunks,verified_fail_chunks,wal_files_staged,oplog_deltas_decompressed,pg_basebackup_files_copied,mongo_basebackup_files_copied,unstructured_restored_raw_bytes,pg_wal_restored_raw_bytes,pg_basebackup_restored_raw_bytes,mongo_oplog_restored_raw_bytes,mongo_basebackup_restored_raw_bytes
+2026-06-20T09:01:12+07:00,chain-v1,7,4.176,162.44,3.578,0.191,0.297,0.005,170.711,1881,1881,0,30,7,1,1,1187308221,486539602,3352764,13387732,18677
+2026-06-20T09:05:27+07:00,chain-v2,7,0.051,12.838,2.251,0.073,0.206,0.017,15.445,715,715,0,31,7,1,1,1179256106,503316821,4025185,14398992,233737
+2026-06-20T09:16:11+07:00,chain-v3,7,0.039,16.047,2.199,0.079,0.347,0.018,18.731,703,703,0,31,7,1,1,1404470478,503316821,4574627,14104717,483086
