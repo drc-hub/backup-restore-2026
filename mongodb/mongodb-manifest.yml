@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb_live
+    restart: unless-stopped
+    command:
+      - mongod
+      - --replSet
+      - rs0
+      - --bind_ip_all
+      - --keyFile
+      - /etc/mongo-keyfile
+      - --wiredTigerCacheSizeGB # CRITICAL to prevent 4GB RAM starvation
+      - "0.5" 
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mongodb
+      MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - /home/primary/data/transactional/mongo/data:/data/db
+      - /home/primary/data/transactional/mongo/mongo-keyfile:/etc/mongo-keyfile:ro
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    ports:
+      - "27017:27017"
+    mem_limit: 1g
+    mem_reservation: 512m
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  data-generator-mongo:
+    image: mongo:7.0 
+    depends_on:
+      - mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mongodb
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_CHAOS_RATE: "0"
+    volumes:
+      - ./mongo-generator.js:/mongo-generator.js:ro
+    command:
+      - sh
+      - -c
+      - |
+        until mongosh "mongodb://mongodb:password@mongodb:27017/test?authSource=admin" --eval 'db.runCommand("ping")'; do
+          sleep 2;
+        done;
+
+        mongosh "mongodb://mongodb:password@mongodb:27017/admin?authSource=admin" --eval '
+          try { rs.status(); } catch (e) { rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "mongodb:27017" }] }); }
+        ';
+
+        until mongosh "mongodb://mongodb:password@mongodb:27017/admin?authSource=admin" --quiet --eval 'db.hello().isWritablePrimary' | grep true; do
+          sleep 2;
+        done;
+
+        while true; do
+          mongosh "mongodb://mongodb:password@mongodb:27017/test?authSource=admin" --quiet --eval "var CHAOS_RATE=$${MONGO_CHAOS_RATE:-0};" --file /mongo-generator.js >/dev/null 2>&1 || true;
+          sleep 60;
+        done
+    mem_limit: 512m
+    mem_reservation: 256m

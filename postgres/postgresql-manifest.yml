@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres_live
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_timeout=300s # Changed from 60s to prevent empty WAL bloat
+      - -c
+      - wal_compression=on # CRITICAL for saving 64GB storage
+      - -c
+      - checkpoint_timeout=5min # Forces WAL recycling smoothly
+      - -c
+      - max_wal_size=1GB # Hard cap on local WAL bloat
+      - -c
+      - max_wal_senders=5
+      - -c
+      - archive_command=sh -c 'dest=/var/lib/postgresql/wal_archive/%f; if [ -s "$$dest" ]; then exit 0; fi; rm -f "$$dest"; cp %p "$$dest" && chmod 0644 "$$dest"'
+    environment:
+      POSTGRES_DB: transactiondb
+      POSTGRES_USER: postgresql
+      POSTGRES_PASSWORD: password
+    volumes:
+      - /home/primary/data/transactional/postgres/data:/var/lib/postgresql/data:rw
+      - /home/primary/data/transactional/postgres/wal_archive:/var/lib/postgresql/wal_archive:rw
+      - ./pg_setup.sql:/docker-entrypoint-initdb.d/pg_setup.sql:ro
+      - ./pg_hba_replication.sh:/docker-entrypoint-initdb.d/pg_hba_replication.sh:ro
+    ports:
+      - "5432:5432"
+    mem_limit: 1g
+    mem_reservation: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgresql -d transactiondb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G # Protect the 4GB VM RAM
+
+  data-generator:
+    image: postgres:15-alpine
+    depends_on:
+      - postgres
+    environment:
+      PGPASSWORD: password
+    volumes:
+      - ./generator.sql:/generator.sql:ro
+    command:  
+      - sh
+      - -c
+      - |
+        until pg_isready -h postgres -p 5432 -U postgresql; do
+          sleep 2;
+        done;
+        while true; do
+          psql -h postgres -U postgresql -d transactiondb -f /generator.sql >/dev/null 2>&1;
+          sleep 60;
+        done
+    mem_limit: 512m
+    mem_reservation: 256m

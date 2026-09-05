@@ -1,0 +1,15 @@
+version: '3.8'
+services:
+  unstructured-generator:
+    image: python:3.11-alpine
+    container_name: unstructured_generator
+    command: ["python3", "/opt/unstructured/unstructured_generator.py"]
+    environment:
+      CHAOS_BITFLIP_RATE: "0"
+    volumes:
+      - /home/primary/data/unstructured:/data/unstructured:rw
+      - /home/primary/data/monitor:/monitor:rw
+      - ./unstructured_generator.py:/opt/unstructured/unstructured_generator.py:ro
+    mem_limit: 512m
+    mem_reservation: 256m
+    restart: unless-stopped
